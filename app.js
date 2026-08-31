@@ -20,7 +20,7 @@ const firebaseConfig = {
 // E-mail fixo usado internamente pro login (o visitante só digita a
 // senha na tela — não vê nem precisa saber desse e-mail). Precisa
 // bater com o usuário que você criar em Authentication > Users.
-const EMAIL_DONO = "dono@cofre.indianos";
+const EMAIL_DONO = "beneditodossantosjoao027@gmail.com";
 
 // Tamanho máximo por arquivo (em bytes). Os arquivos ficam guardados
 // como texto (base64) dentro do Realtime Database — que é gratuito
