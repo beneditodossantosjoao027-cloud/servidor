@@ -42,7 +42,7 @@ const TAMANHO_MAXIMO_ARQUIVO = 700 * 1024;
 // depende dele: geração de imagem por texto, escrever no bloco por
 // pedido, etc.) fica desativado.
 const CHAVES_GEMINI = ["AQ.Ab8RN6LZLe9-DAPkMGxmIu3G3j9VyhJPmvzfLLKCs-X3skxFFg","AQ.Ab8RN6KGOBB2_J4nUrqY7kb4zhOZFTwHivwTkrK4ZXLej40QUA","AQ.Ab8RN6KU7ppnVOJnLF4L7WV7f1bie0Ct6rFsO-T31lOSw8iRlw"]; // ex: ["AIzaSy....", "AIzaSy...outra"]
-const MODELOS_GEMINI = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+const MODELOS_GEMINI = ["gemini-3.1-flash-lite","gemini-3.1-pro-preview"];
 const COMBOS_GEMINI = CHAVES_GEMINI.flatMap((chave) => MODELOS_GEMINI.map((modelo) => [chave, modelo]));
 let indiceComboAtual = 0;
 
