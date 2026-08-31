@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cofre Indianos</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="tela-senha" class="tela">
+  <div class="cartao-senha">
+    <div class="bolinha-indianos"></div>
+    <h1>Indianos</h1>
+    <p id="msg-indianos">Esse é o seu cofre pessoal. Antes de entrar, preciso da senha.</p>
+    <input type="password" id="input-senha" placeholder="Senha" autocomplete="current-password" />
+    <button id="btn-entrar">Entrar</button>
+  </div>
+</div>
+
+<div id="tela-cofre" class="tela escondido">
+  <header>
+    <div class="titulo-com-status">
+      <span id="bolinha-status" class="bolinha-status"></span>
+      <h1>Cofre Indianos</h1>
+    </div>
+    <button id="btn-sair">Sair</button>
+  </header>
+
+  <main>
+    <section class="painel">
+      <h2>Notas e diário</h2>
+      <input type="text" id="nota-titulo" placeholder="Título (opcional)" />
+      <textarea id="nota-conteudo" placeholder="Escreva algo que queira guardar..."></textarea>
+      <button id="btn-salvar-nota">Salvar nota</button>
+      <div id="lista-notas" class="lista"></div>
+    </section>
+
+    <section class="painel">
+      <h2>Arquivos</h2>
+      <input type="file" id="input-arquivo" />
+      <div id="lista-arquivos" class="lista"></div>
+    </section>
+
+    <section class="painel">
+      <h2>Conversar com o Indianos</h2>
+      <label class="opcao-falar">
+        <input type="checkbox" id="check-falar" /> Indianos fala as respostas em voz alta
+      </label>
+      <div id="historico-chat" class="historico-chat"></div>
+      <div class="linha-chat">
+        <input type="text" id="input-chat" placeholder="Digite ou fale uma mensagem..." />
+        <button id="btn-microfone" title="Falar com o Indianos">🎤</button>
+        <button id="btn-enviar-chat">Enviar</button>
+      </div>
+    </section>
+
+    <section class="painel">
+      <h2>Alertas de segurança</h2>
+      <p class="dica">Toda tentativa de senha errada fica registrada aqui.</p>
+      <div id="lista-alertas" class="lista"></div>
+    </section>
+  </main>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
