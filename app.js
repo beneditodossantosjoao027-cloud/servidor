@@ -1,12 +1,6 @@
 // ============================================================
 // COFRE INDIANOS - configuração
 // ============================================================
-// Pegue esses valores em: Firebase Console > Configurações do
-// projeto > Seus apps > (ícone Web) > SDK setup and configuration.
-// Esses valores NÃO são segredo — o próprio Firebase espera que
-// fiquem no código do site; quem protege seus dados de verdade são
-// as regras de segurança (firestore.rules / database.rules.json), não
-// isso aqui ficar escondido.
 const firebaseConfig = {
   apiKey: "AIzaSyA8sZufnKy5GR4aw5Xq29sXnxvipMjQZlQ",
   authDomain: "cofre-e010d.firebaseapp.com",
@@ -17,42 +11,23 @@ const firebaseConfig = {
   appId: "1:551335230604:web:3213c472257fe9007e4fa9",
 };
 
-// E-mail fixo usado internamente pro login (o visitante só digita a
-// senha na tela — não vê nem precisa saber desse e-mail). Precisa
-// bater com o usuário que você criar em Authentication > Users.
-const EMAIL_DONO = "beneditodossantosjoao027@gmail.com";
-
-// Tamanho máximo por arquivo (em bytes). Os arquivos ficam guardados
-// como texto (base64) dentro do Realtime Database — que é gratuito
-// (plano Spark) — em vez do Cloud Storage, que hoje em dia exige
-// cartão de crédito cadastrado (plano Blaze) mesmo pra uso grátis.
-// 700 KB é uma margem segura pra não estourar a cota gratuita do
-// banco (1 GB no total) rápido demais.
+const EMAIL_DONO = "dono@cofre.indianos";
 const TAMANHO_MAXIMO_ARQUIVO = 700 * 1024;
 
-// ---------- Chat com o Indianos via Gemini (rotação de chave+modelo) ----------
-// ATENÇÃO: o GitHub Pages não esconde JavaScript, nem em repositório
-// privado (o site publicado é sempre público) — então qualquer chave
-// colada aqui fica visível pra quem abrir o site e olhar o código.
-// Como uma chave do Google AI Studio (esse formato "AQ.Ab8..." ou
-// "AIzaSy...") não tem cobrança vinculada por padrão, o pior cenário
-// de vazar é alguém gastar sua cota grátis — não é cartão nem dado
-// bancário. Se não quiser nem esse risco, deixe a lista vazia: o
-// cofre de notas/arquivos funciona normalmente, só o chat (e tudo que
-// depende dele: geração de imagem por texto, escrever no bloco por
-// pedido, etc.) fica desativado.
-const CHAVES_GEMINI = ["AQ.Ab8RN6LZLe9-DAPkMGxmIu3G3j9VyhJPmvzfLLKCs-X3skxFFg","AQ.Ab8RN6KGOBB2_J4nUrqY7kb4zhOZFTwHivwTkrK4ZXLej40QUA","AQ.Ab8RN6KU7ppnVOJnLF4L7WV7f1bie0Ct6rFsO-T31lOSw8iRlw"]; // ex: ["AIzaSy....", "AIzaSy...outra"]
-const MODELOS_GEMINI = ["gemini-3.1-flash-lite","gemini-3.1-pro-preview"];
+// ---------- Chat com o Indianos via Gemini ----------
+const CHAVES_GEMINI = [
+  "AQ.Ab8RN6LZLe9-DAPkMGxmIu3G3j9VyhJPmvzfLLKCs-X3skxFFg",
+  "AQ.Ab8RN6KGOBB2_J4nUrqY7kb4zhOZFTwHivwTkrK4ZXLej40QUA",
+  "AQ.Ab8RN6KU7ppnVOJnLF4L7WV7f1bie0Ct6rFsO-T31lOSw8iRlw"
+];
+const MODELOS_GEMINI = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
 const COMBOS_GEMINI = CHAVES_GEMINI.flatMap((chave) => MODELOS_GEMINI.map((modelo) => [chave, modelo]));
 let indiceComboAtual = 0;
 
-// Indianos fala as respostas em voz alta (Web Speech API do navegador
-// — funciona bem no Chrome/Edge; em outros navegadores pode não ter
-// vozes em português instaladas).
 let falarAtivado = true;
 
 // ============================================================
-// Firebase
+// Firebase Imports
 // ============================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {
@@ -83,7 +58,7 @@ const msgIndianos = document.getElementById("msg-indianos");
 let tentativasErradas = 0;
 
 // ============================================================
-// Bolinha de status (mesmas cores do Indianos Remaster no desktop)
+// Bolinha de status
 // ============================================================
 const CORES_ESTADO = {
   espera: "#00e5e5",
@@ -113,14 +88,10 @@ async function tentarEntrar() {
   msgIndianos.textContent = "Verificando a senha...";
   try {
     await signInWithEmailAndPassword(auth, EMAIL_DONO, senha);
-    // onAuthStateChanged cuida de trocar de tela quando der certo
   } catch (erro) {
     tentativasErradas++;
     registrarAlerta(`Tentativa de senha errada (nº ${tentativasErradas} desta sessão)`);
     if (erro.code === "auth/too-many-requests") {
-      // O próprio Firebase já bloqueia sozinho depois de várias
-      // tentativas erradas seguidas — é isso que dá o efeito de
-      // "a Indianos bloqueia o acesso até acertar a senha".
       msgIndianos.textContent = "Muitas tentativas erradas. Acesso bloqueado por um tempo — tenta de novo daqui a pouco.";
     } else {
       msgIndianos.textContent = "Senha incorreta. Acesso negado.";
@@ -212,8 +183,7 @@ async function carregarNotas() {
 }
 
 // ============================================================
-// Arquivos (guardados como base64 no Realtime Database — não usa
-// Cloud Storage, então não precisa do plano pago)
+// Arquivos
 // ============================================================
 document.getElementById("input-arquivo").addEventListener("change", async (evento) => {
   const arquivo = evento.target.files[0];
@@ -223,15 +193,13 @@ document.getElementById("input-arquivo").addEventListener("change", async (event
   if (arquivo.size > TAMANHO_MAXIMO_ARQUIVO) {
     alert(
       `Esse arquivo tem ${(arquivo.size / 1024).toFixed(0)} KB. ` +
-      `O limite aqui é ${(TAMANHO_MAXIMO_ARQUIVO / 1024).toFixed(0)} KB ` +
-      `(guardamos os arquivos como texto dentro do banco gratuito, então ` +
-      `precisa ser algo pequeno — foto comprimida, PDF curto, texto etc.)`
+      `O limite aqui é ${(TAMANHO_MAXIMO_ARQUIVO / 1024).toFixed(0)} KB.`
     );
     return;
   }
 
   const base64Completo = await lerArquivoComoBase64(arquivo);
-  const base64Puro = base64Completo.split(",")[1]; // tira o prefixo "data:tipo;base64,"
+  const base64Puro = base64Completo.split(",")[1];
 
   await push(ref(dbRT, "arquivos"), {
     nome: arquivo.name,
@@ -304,19 +272,21 @@ async function carregarAlertas() {
 }
 
 // ============================================================
-// Chamada unificada ao Gemini (com rotação de chave+modelo, igual ao
-// Indianos Remaster no desktop)
+// Chamada unificada ao Gemini (Atualizada para x-goog-api-key)
 // ============================================================
 async function chamarGemini(payload) {
   if (COMBOS_GEMINI.length === 0) return null;
   const tentativas = COMBOS_GEMINI.length * 2;
   for (let i = 0; i < tentativas; i++) {
     const [chave, modelo] = COMBOS_GEMINI[indiceComboAtual];
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${chave}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
     try {
       const resposta = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-goog-api-key": chave
+        },
         body: JSON.stringify(payload),
       });
       if (resposta.status === 429) {
@@ -337,9 +307,7 @@ async function chamarGemini(payload) {
 }
 
 // ============================================================
-// Voz: ouvir (Web Speech Recognition) e falar (Web Speech Synthesis)
-// Isso É possível no navegador (ao contrário de mexer no mouse/
-// teclado/volume do PC, que nenhum site consegue fazer).
+// Voz: ouvir e falar
 // ============================================================
 const ReconhecimentoDeVoz = window.SpeechRecognition || window.webkitSpeechRecognition;
 let reconhecedor = null;
@@ -378,7 +346,7 @@ if (checkFalar) {
 
 function falarTexto(texto) {
   if (!falarAtivado || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel(); // corta qualquer fala anterior em andamento
+  window.speechSynthesis.cancel();
   const fala = new SpeechSynthesisUtterance(texto);
   fala.lang = "pt-BR";
   fala.rate = 1.05;
@@ -389,8 +357,7 @@ function falarTexto(texto) {
 }
 
 // ============================================================
-// Geração de imagem (pollinations.ai — funciona igual ao desktop,
-// é só uma chamada de rede, não depende do sistema operacional)
+// Geração de imagem
 // ============================================================
 async function gerarImagemChat(descricao) {
   adicionarBalao("indianos", "Gerando imagem...");
@@ -407,8 +374,7 @@ async function gerarImagemChat(descricao) {
 }
 
 // ============================================================
-// Roteador de comandos — mesma ideia do processar_resposta_texto()
-// do Indianos Remaster: cada frase é olhada e mandada pra ação certa.
+// Roteador de comandos
 // ============================================================
 const GATILHOS_ESCRITA_LITERAL = [
   "escreve exatamente", "escreva exatamente", "escreve literalmente",
@@ -422,7 +388,6 @@ async function processarComando(textoOriginal) {
 
   atualizarEstadoIndianos("processando");
 
-  // ---- Bloco de notas: literal ou gerado pela IA ----
   const gatilhoLiteral = GATILHOS_ESCRITA_LITERAL.find((g) => textoMin.includes(g));
   if (gatilhoLiteral) {
     const idx = textoMin.indexOf(gatilhoLiteral) + gatilhoLiteral.length;
@@ -458,7 +423,6 @@ async function processarComando(textoOriginal) {
     return;
   }
 
-  // ---- Geração de imagem ----
   if (["gera uma imagem", "gerar imagem", "cria uma imagem", "desenha"].some((g) => textoMin.includes(g))) {
     await gerarImagemChat(texto);
     falarTexto("Pronto, gerei a imagem.");
@@ -466,7 +430,6 @@ async function processarComando(textoOriginal) {
     return;
   }
 
-  // ---- Fallback: conversa livre com o Gemini ----
   const resposta = await chamarGemini({
     contents: [
       { role: "user", parts: [{ text: "Você é o Indianos, uma IA que gerencia o cofre pessoal do seu criador." }] },
@@ -474,14 +437,14 @@ async function processarComando(textoOriginal) {
       { role: "user", parts: [{ text: texto }] },
     ],
   });
-  const textoResposta = resposta || "Chat desativado — nenhuma chave do Gemini foi configurada em app.js.";
+  const textoResposta = resposta || "Chat desativado — nenhuma chave do Gemini respondeu com sucesso.";
   adicionarBalao("indianos", textoResposta);
   falarTexto(textoResposta);
   atualizarEstadoIndianos("espera");
 }
 
 // ============================================================
-// Chat com o Indianos (texto e voz)
+// Chat
 // ============================================================
 document.getElementById("btn-enviar-chat").addEventListener("click", enviarMensagemChat);
 document.getElementById("input-chat").addEventListener("keydown", (e) => {
