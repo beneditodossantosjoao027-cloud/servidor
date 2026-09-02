@@ -7,6 +7,7 @@
   --laranja: #ff7a1f;
   --verde: #2ecc71;
   --amarelo: #e8c547;
+  --vermelho: #ff4d4d;
   --texto: #e6e6e6;
   --texto-fraco: #9a9a9a;
 }
@@ -117,34 +118,6 @@ header button { background: transparent; border: 1px solid var(--borda); color: 
   background: var(--cyan);
   box-shadow: 0 0 14px var(--cyan);
   flex-shrink: 0;
-  transition: background 0.2s, box-shadow 0.2s;
-}
-.bolinha-status.pulsando { animation: pulsar 1s ease-in-out infinite; }
-
-.opcao-falar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.82rem;
-  color: var(--texto-fraco);
-  margin-bottom: 10px;
-  cursor: pointer;
-}
-.opcao-falar input { width: auto; margin: 0; }
-
-#btn-microfone {
-  background: transparent;
-  border: 1px solid var(--borda);
-  padding: 10px 14px;
-  flex-shrink: 0;
-}
-#btn-microfone:hover { border-color: var(--cyan); }
-
-.imagem-gerada {
-  max-width: 100%;
-  border-radius: 8px;
-  margin-top: 4px;
-  display: block;
 }
 
 main { max-width: 640px; margin: 0 auto; padding: 20px; }
@@ -182,6 +155,71 @@ main { max-width: 640px; margin: 0 auto; padding: 20px; }
   flex-shrink: 0;
 }
 
+/* ---------- Galeria de Fotos (Cloudinary) ---------- */
+.grid-galeria {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.item-foto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  padding: 8px;
+  border-radius: 8px;
+  gap: 8px;
+}
+
+.item-foto img {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.item-foto button {
+  background: transparent;
+  border: 1px solid var(--borda);
+  color: var(--vermelho);
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  width: 100%;
+}
+
+/* ---------- Lixeira ---------- */
+.item-lixeira {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--campo);
+  border: 1px solid rgba(255, 77, 77, 0.3);
+  border-radius: 8px;
+  gap: 10px;
+}
+
+.item-lixeira span {
+  font-weight: 600;
+  color: var(--texto);
+  word-break: break-all;
+}
+
+.item-lixeira button {
+  background: transparent;
+  border: 1px solid var(--borda);
+  color: var(--texto);
+  font-size: 0.8rem;
+  padding: 4px 8px;
+}
+
+.item-lixeira button:last-child {
+  color: var(--vermelho);
+}
+
 .item-alerta {
   background: var(--campo);
   border: 1px solid var(--borda);
@@ -191,30 +229,6 @@ main { max-width: 640px; margin: 0 auto; padding: 20px; }
   font-size: 0.85rem;
   color: var(--amarelo);
 }
-
-.historico-chat {
-  height: 220px;
-  overflow-y: auto;
-  background: var(--campo);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.balao {
-  padding: 8px 12px;
-  border-radius: 10px;
-  max-width: 82%;
-  font-size: 0.9rem;
-}
-.balao-voce { align-self: flex-end; background: #143a36; }
-.balao-indianos { align-self: flex-start; background: #1c1c2e; color: var(--cyan); }
-
-.linha-chat { display: flex; gap: 8px; }
-.linha-chat input { flex: 1; margin-bottom: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .bolinha-indianos { animation: none; }
