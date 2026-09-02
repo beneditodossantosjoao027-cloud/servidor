@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cofre Indianos</title>
+<title>servidor proprio</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -28,33 +28,36 @@
   </header>
 
   <main>
+    <!-- NOTAS E DIÁRIO -->
     <section class="painel">
-      <h2>Notas e diário</h2>
+      <h2>Notas e diário (Criptografado)</h2>
       <input type="text" id="nota-titulo" placeholder="Título (opcional)" />
       <textarea id="nota-conteudo" placeholder="Escreva algo que queira guardar..."></textarea>
       <button id="btn-salvar-nota">Salvar nota</button>
       <div id="lista-notas" class="lista"></div>
     </section>
 
+    <!-- GALERIA DE FOTOS (CLOUDINARY) -->
     <section class="painel">
-      <h2>Arquivos</h2>
+      <h2>Galeria de Fotos (Cloudinary)</h2>
+      <input type="file" id="input-imagem-cloudinary" accept="image/*" />
+      <div id="galeria-fotos" class="grid-galeria"></div>
+    </section>
+
+    <!-- ARQUIVOS LOCAIS -->
+    <section class="painel">
+      <h2>Arquivos (Realtime Database)</h2>
       <input type="file" id="input-arquivo" />
       <div id="lista-arquivos" class="lista"></div>
     </section>
 
+    <!-- LIXEIRA -->
     <section class="painel">
-      <h2>Conversar com o Indianos</h2>
-      <label class="opcao-falar">
-        <input type="checkbox" id="check-falar" /> Indianos fala as respostas em voz alta
-      </label>
-      <div id="historico-chat" class="historico-chat"></div>
-      <div class="linha-chat">
-        <input type="text" id="input-chat" placeholder="Digite ou fale uma mensagem..." />
-        <button id="btn-microfone" title="Falar com o Indianos">🎤</button>
-        <button id="btn-enviar-chat">Enviar</button>
-      </div>
+      <h2>Lixeira (Notas Removidas)</h2>
+      <div id="lista-lixeira" class="lista"></div>
     </section>
 
+    <!-- ALERTAS -->
     <section class="painel">
       <h2>Alertas de segurança</h2>
       <p class="dica">Toda tentativa de senha errada fica registrada aqui.</p>
