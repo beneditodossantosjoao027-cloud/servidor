@@ -1,5 +1,5 @@
 // ============================================================
-// COFRE INDIANOS - configuração
+// COFRE INDIANOS - Configuração Firebase & Cloudinary
 // ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyA8sZufnKy5GR4aw5Xq29sXnxvipMjQZlQ",
@@ -11,20 +11,12 @@ const firebaseConfig = {
   appId: "1:551335230604:web:3213c472257fe9007e4fa9",
 };
 
+// ⚠️ PREENCHA AQUI COM OS DADOS DO SEU CLOUDINARY:
+const CLOUDINARY_CLOUD_NAME = "nojdy9nl"; 
+const CLOUDINARY_UPLOAD_PRESET = "f3lufesy";
+
 const EMAIL_DONO = "dono@cofre.indianos";
 const TAMANHO_MAXIMO_ARQUIVO = 700 * 1024;
-
-// ---------- Chat com o Indianos via Gemini ----------
-const CHAVES_GEMINI = [
-  "AQ.Ab8RN6LZLe9-DAPkMGxmIu3G3j9VyhJPmvzfLLKCs-X3skxFFg",
-  "AQ.Ab8RN6KGOBB2_J4nUrqY7kb4zhOZFTwHivwTkrK4ZXLej40QUA",
-  "AQ.Ab8RN6KU7ppnVOJnLF4L7WV7f1bie0Ct6rFsO-T31lOSw8iRlw"
-];
-const MODELOS_GEMINI = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
-const COMBOS_GEMINI = CHAVES_GEMINI.flatMap((chave) => MODELOS_GEMINI.map((modelo) => [chave, modelo]));
-let indiceComboAtual = 0;
-
-let falarAtivado = true;
 
 // ============================================================
 // Firebase Imports
@@ -34,8 +26,8 @@ import {
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
-  getFirestore, collection, addDoc, getDocs, query, orderBy,
-  serverTimestamp, deleteDoc, doc,
+  getFirestore, collection, addDoc, getDocs, query, orderBy, where,
+  serverTimestamp, deleteDoc, doc, updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import {
   getDatabase, ref, push, get, remove, serverTimestamp as rtdbServerTimestamp,
@@ -45,6 +37,48 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const dbRT = getDatabase(app);
+
+// ============================================================
+// Sistema de Criptografia Web Crypto API (AES-GCM)
+// ============================================================
+const CHAVE_CRIPTOGRAFIA_LOCAL = "CofreSeguroIndianosChave2026"; // Altere para sua chave secreta
+
+async function obterChaveCrypto() {
+  const enc = new TextEncoder();
+  const rawKey = enc.encode(CHAVE_CRIPTOGRAFIA_LOCAL.padEnd(32, '0').slice(0, 32));
+  return await crypto.subtle.importKey(
+    "raw", rawKey, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]
+  );
+}
+
+async function criptografarTexto(texto) {
+  if (!texto) return "";
+  const key = await obterChaveCrypto();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv }, key, enc.encode(texto)
+  );
+  const ivHex = Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join('');
+  const contentHex = Array.from(new Uint8Array(encrypted)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${ivHex}:${contentHex}`;
+}
+
+async function descriptografarTexto(dadosCriptografados) {
+  try {
+    if (!dadosCriptografados || !dadosCriptografados.includes(':')) return dadosCriptografados;
+    const [ivHex, contentHex] = dadosCriptografados.split(':');
+    const iv = new Uint8Array(ivHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    const encrypted = new Uint8Array(contentHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    const key = await obterChaveCrypto();
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv }, key, encrypted
+    );
+    return new TextDecoder().decode(decrypted);
+  } catch (e) {
+    return "[Erro ao descriptografar: Chave incorreta]";
+  }
+}
 
 // ============================================================
 // Elementos da tela
@@ -58,25 +92,7 @@ const msgIndianos = document.getElementById("msg-indianos");
 let tentativasErradas = 0;
 
 // ============================================================
-// Bolinha de status
-// ============================================================
-const CORES_ESTADO = {
-  espera: "#00e5e5",
-  ouvindo: "#ff7a1f",
-  processando: "#e8c547",
-  falando: "#2ecc71",
-};
-
-function atualizarEstadoIndianos(estado) {
-  const bolinha = document.getElementById("bolinha-status");
-  if (!bolinha) return;
-  bolinha.style.background = CORES_ESTADO[estado] || CORES_ESTADO.espera;
-  bolinha.style.boxShadow = `0 0 14px ${CORES_ESTADO[estado] || CORES_ESTADO.espera}`;
-  bolinha.classList.toggle("pulsando", estado !== "espera");
-}
-
-// ============================================================
-// Login / bloqueio
+// Login / Bloqueio
 // ============================================================
 btnEntrar.addEventListener("click", tentarEntrar);
 inputSenha.addEventListener("keydown", (e) => { if (e.key === "Enter") tentarEntrar(); });
@@ -92,7 +108,7 @@ async function tentarEntrar() {
     tentativasErradas++;
     registrarAlerta(`Tentativa de senha errada (nº ${tentativasErradas} desta sessão)`);
     if (erro.code === "auth/too-many-requests") {
-      msgIndianos.textContent = "Muitas tentativas erradas. Acesso bloqueado por um tempo — tenta de novo daqui a pouco.";
+      msgIndianos.textContent = "Muitas tentativas erradas. Acesso bloqueado temporariamente.";
     } else {
       msgIndianos.textContent = "Senha incorreta. Acesso negado.";
     }
@@ -106,10 +122,11 @@ onAuthStateChanged(auth, (usuario) => {
   if (usuario) {
     telaSenha.classList.add("escondido");
     telaCofre.classList.remove("escondido");
-    atualizarEstadoIndianos("espera");
     carregarNotas();
+    carregarLixeira();
     carregarArquivos();
     carregarAlertas();
+    carregarGaleriaCloudinary();
   } else {
     telaSenha.classList.remove("escondido");
     telaCofre.classList.add("escondido");
@@ -131,20 +148,27 @@ async function registrarAlerta(motivo) {
 }
 
 // ============================================================
-// Notas / diário
+// Notas Criptografadas com Sistema de Lixeira (Soft Delete)
 // ============================================================
-document.getElementById("btn-salvar-nota").addEventListener("click", salvarNota);
+const btnSalvarNota = document.getElementById("btn-salvar-nota");
+if (btnSalvarNota) btnSalvarNota.addEventListener("click", salvarNota);
 
 async function salvarNota() {
   const tituloEl = document.getElementById("nota-titulo");
   const conteudoEl = document.getElementById("nota-conteudo");
   const conteudo = conteudoEl.value.trim();
   if (!conteudo) return;
+
+  const conteudoCriptografado = await criptografarTexto(conteudo);
+  const tituloCriptografado = await criptografarTexto(tituloEl.value.trim() || "(sem título)");
+
   await addDoc(collection(db, "arquivos_texto"), {
-    titulo: tituloEl.value.trim() || "(sem título)",
-    conteudo,
+    titulo: tituloCriptografado,
+    conteudo: conteudoCriptografado,
+    na_lixeira: false,
     criado_em: serverTimestamp(),
   });
+  
   tituloEl.value = "";
   conteudoEl.value = "";
   carregarNotas();
@@ -152,64 +176,199 @@ async function salvarNota() {
 
 async function carregarNotas() {
   const lista = document.getElementById("lista-notas");
+  if (!lista) return;
   lista.textContent = "Carregando...";
-  const q = query(collection(db, "arquivos_texto"), orderBy("criado_em", "desc"));
+  
+  const q = query(
+    collection(db, "arquivos_texto"),
+    where("na_lixeira", "==", false),
+    orderBy("criado_em", "desc")
+  );
+  
   const snap = await getDocs(q);
   lista.innerHTML = "";
   if (snap.empty) {
-    lista.textContent = "Nenhuma nota ainda.";
+    lista.textContent = "Nenhuma nota ativa.";
     return;
   }
-  snap.forEach((docSnap) => {
+  
+  for (const docSnap of snap.docs) {
     const nota = docSnap.data();
+    const tituloDescriptografado = await descriptografarTexto(nota.titulo);
+    const conteudoDescriptografado = await descriptografarTexto(nota.conteudo);
+
     const item = document.createElement("div");
     item.className = "item-nota";
     const titulo = document.createElement("strong");
-    titulo.textContent = nota.titulo;
+    titulo.textContent = tituloDescriptografado;
     const corpo = document.createElement("p");
-    corpo.textContent = nota.conteudo;
+    corpo.textContent = conteudoDescriptografado;
+    
     const linhaAcoes = document.createElement("div");
     linhaAcoes.className = "linha-acoes";
     const btnDel = document.createElement("button");
-    btnDel.textContent = "Excluir";
+    btnDel.textContent = "Mover para Lixeira";
     btnDel.onclick = async () => {
-      await deleteDoc(doc(db, "arquivos_texto", docSnap.id));
+      await updateDoc(doc(db, "arquivos_texto", docSnap.id), { na_lixeira: true });
       carregarNotas();
+      carregarLixeira();
     };
+    
     linhaAcoes.appendChild(btnDel);
     item.append(titulo, corpo, linhaAcoes);
     lista.appendChild(item);
+  }
+}
+
+async function carregarLixeira() {
+  const lista = document.getElementById("lista-lixeira");
+  if (!lista) return;
+  lista.textContent = "Carregando lixeira...";
+
+  const q = query(
+    collection(db, "arquivos_texto"),
+    where("na_lixeira", "==", true),
+    orderBy("criado_em", "desc")
+  );
+
+  const snap = await getDocs(q);
+  lista.innerHTML = "";
+  if (snap.empty) {
+    lista.textContent = "Lixeira vazia.";
+    return;
+  }
+
+  for (const docSnap of snap.docs) {
+    const nota = docSnap.data();
+    const tituloDescriptografado = await descriptografarTexto(nota.titulo);
+
+    const item = document.createElement("div");
+    item.className = "item-lixeira";
+    const titulo = document.createElement("span");
+    titulo.textContent = tituloDescriptografado;
+
+    const btnRestaurar = document.createElement("button");
+    btnRestaurar.textContent = "Restaurar";
+    btnRestaurar.onclick = async () => {
+      await updateDoc(doc(db, "arquivos_texto", docSnap.id), { na_lixeira: false });
+      carregarNotas();
+      carregarLixeira();
+    };
+
+    const btnExcluirPerm = document.createElement("button");
+    btnExcluirPerm.textContent = "Excluir Definitivamente";
+    btnExcluirPerm.onclick = async () => {
+      await deleteDoc(doc(db, "arquivos_texto", docSnap.id));
+      carregarLixeira();
+    };
+
+    item.append(titulo, btnRestaurar, btnExcluirPerm);
+    lista.appendChild(item);
+  }
+}
+
+// ============================================================
+// Armazenamento de Fotos Gratuitas via Cloudinary
+// ============================================================
+const inputImagemCloudinary = document.getElementById("input-imagem-cloudinary");
+if (inputImagemCloudinary) {
+  inputImagemCloudinary.addEventListener("change", async (evento) => {
+    const arquivo = evento.target.files[0];
+    evento.target.value = "";
+    if (!arquivo) return;
+
+    const formData = new FormData();
+    formData.append("file", arquivo);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+    try {
+      const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!resp.ok) throw new Error("Falha no upload para o Cloudinary");
+
+      const dados = await resp.json();
+      
+      await addDoc(collection(db, "galeria_fotos"), {
+        url: dados.secure_url,
+        public_id: dados.public_id,
+        criado_em: serverTimestamp(),
+      });
+
+      carregarGaleriaCloudinary();
+    } catch (e) {
+      alert("Erro ao enviar a imagem. Verifique as credenciais do Cloudinary.");
+      console.error(e);
+    }
+  });
+}
+
+async function carregarGaleriaCloudinary() {
+  const galeria = document.getElementById("galeria-fotos");
+  if (!galeria) return;
+  galeria.textContent = "Carregando imagens...";
+
+  const q = query(collection(db, "galeria_fotos"), orderBy("criado_em", "desc"));
+  const snap = await getDocs(q);
+  galeria.innerHTML = "";
+
+  if (snap.empty) {
+    galeria.textContent = "Nenhuma foto armazenada.";
+    return;
+  }
+
+  snap.forEach((docSnap) => {
+    const foto = docSnap.data();
+    const container = document.createElement("div");
+    container.className = "item-foto";
+
+    const img = document.createElement("img");
+    img.src = foto.url;
+    img.style.width = "150px";
+    img.style.borderRadius = "8px";
+
+    const btnDel = document.createElement("button");
+    btnDel.textContent = "Excluir";
+    btnDel.onclick = async () => {
+      await deleteDoc(doc(db, "galeria_fotos", docSnap.id));
+      carregarGaleriaCloudinary();
+    };
+
+    container.append(img, btnDel);
+    galeria.appendChild(container);
   });
 }
 
 // ============================================================
-// Arquivos
+// Arquivos Locais (Realtime Database)
 // ============================================================
-document.getElementById("input-arquivo").addEventListener("change", async (evento) => {
-  const arquivo = evento.target.files[0];
-  evento.target.value = "";
-  if (!arquivo) return;
+const inputArquivo = document.getElementById("input-arquivo");
+if (inputArquivo) {
+  inputArquivo.addEventListener("change", async (evento) => {
+    const arquivo = evento.target.files[0];
+    evento.target.value = "";
+    if (!arquivo) return;
 
-  if (arquivo.size > TAMANHO_MAXIMO_ARQUIVO) {
-    alert(
-      `Esse arquivo tem ${(arquivo.size / 1024).toFixed(0)} KB. ` +
-      `O limite aqui é ${(TAMANHO_MAXIMO_ARQUIVO / 1024).toFixed(0)} KB.`
-    );
-    return;
-  }
+    if (arquivo.size > TAMANHO_MAXIMO_ARQUIVO) {
+      alert(`O arquivo excede o limite local de ${(TAMANHO_MAXIMO_ARQUIVO / 1024).toFixed(0)} KB.`);
+      return;
+    }
 
-  const base64Completo = await lerArquivoComoBase64(arquivo);
-  const base64Puro = base64Completo.split(",")[1];
+    const base64Completo = await lerArquivoComoBase64(arquivo);
+    const base64Puro = base64Completo.split(",")[1];
 
-  await push(ref(dbRT, "arquivos"), {
-    nome: arquivo.name,
-    tipo: arquivo.type || "application/octet-stream",
-    tamanho: arquivo.size,
-    conteudo_base64: base64Puro,
-    criado_em: rtdbServerTimestamp(),
+    await push(ref(dbRT, "arquivos"), {
+      nome: arquivo.name,
+      tipo: arquivo.type || "application/octet-stream",
+      tamanho: arquivo.size,
+      conteudo_base64: base64Puro,
+      criado_em: rtdbServerTimestamp(),
+    });
+    carregarArquivos();
   });
-  carregarArquivos();
-});
+}
 
 function lerArquivoComoBase64(arquivo) {
   return new Promise((resolve, reject) => {
@@ -222,6 +381,7 @@ function lerArquivoComoBase64(arquivo) {
 
 async function carregarArquivos() {
   const lista = document.getElementById("lista-arquivos");
+  if (!lista) return;
   lista.textContent = "Carregando...";
   const snap = await get(ref(dbRT, "arquivos"));
   lista.innerHTML = "";
@@ -249,10 +409,11 @@ async function carregarArquivos() {
 }
 
 // ============================================================
-// Alertas de segurança
+// Alertas de Segurança
 // ============================================================
 async function carregarAlertas() {
   const lista = document.getElementById("lista-alertas");
+  if (!lista) return;
   lista.textContent = "Carregando...";
   const q = query(collection(db, "alertas_seguranca"), orderBy("criado_em", "desc"));
   const snap = await getDocs(q);
@@ -269,202 +430,4 @@ async function carregarAlertas() {
     linha.textContent = `${alerta.motivo} — ${quando}`;
     lista.appendChild(linha);
   });
-}
-
-// ============================================================
-// Chamada unificada ao Gemini (Atualizada para x-goog-api-key)
-// ============================================================
-async function chamarGemini(payload) {
-  if (COMBOS_GEMINI.length === 0) return null;
-  const tentativas = COMBOS_GEMINI.length * 2;
-  for (let i = 0; i < tentativas; i++) {
-    const [chave, modelo] = COMBOS_GEMINI[indiceComboAtual];
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
-    try {
-      const resposta = await fetch(url, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-goog-api-key": chave
-        },
-        body: JSON.stringify(payload),
-      });
-      if (resposta.status === 429) {
-        indiceComboAtual = (indiceComboAtual + 1) % COMBOS_GEMINI.length;
-        continue;
-      }
-      if (!resposta.ok) {
-        console.warn(`[Gemini] Erro HTTP ${resposta.status}`);
-        return null;
-      }
-      const dados = await resposta.json();
-      return dados?.candidates?.[0]?.content?.parts?.[0]?.text || null;
-    } catch (e) {
-      console.warn("[Gemini] Falha de conexão:", e);
-    }
-  }
-  return null;
-}
-
-// ============================================================
-// Voz: ouvir e falar
-// ============================================================
-const ReconhecimentoDeVoz = window.SpeechRecognition || window.webkitSpeechRecognition;
-let reconhecedor = null;
-if (ReconhecimentoDeVoz) {
-  reconhecedor = new ReconhecimentoDeVoz();
-  reconhecedor.lang = "pt-BR";
-  reconhecedor.continuous = false;
-  reconhecedor.interimResults = false;
-
-  reconhecedor.onstart = () => atualizarEstadoIndianos("ouvindo");
-  reconhecedor.onerror = () => atualizarEstadoIndianos("espera");
-  reconhecedor.onend = () => atualizarEstadoIndianos("espera");
-  reconhecedor.onresult = (evento) => {
-    const texto = evento.results[0][0].transcript;
-    document.getElementById("input-chat").value = "";
-    adicionarBalao("voce", texto);
-    processarComando(texto);
-  };
-}
-
-const btnMicrofone = document.getElementById("btn-microfone");
-if (btnMicrofone) {
-  if (!reconhecedor) {
-    btnMicrofone.disabled = true;
-    btnMicrofone.title = "Seu navegador não suporta reconhecimento de voz (funciona no Chrome/Edge)";
-  } else {
-    btnMicrofone.addEventListener("click", () => reconhecedor.start());
-  }
-}
-
-const checkFalar = document.getElementById("check-falar");
-if (checkFalar) {
-  checkFalar.checked = falarAtivado;
-  checkFalar.addEventListener("change", () => { falarAtivado = checkFalar.checked; });
-}
-
-function falarTexto(texto) {
-  if (!falarAtivado || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  const fala = new SpeechSynthesisUtterance(texto);
-  fala.lang = "pt-BR";
-  fala.rate = 1.05;
-  fala.pitch = 0.9;
-  fala.onstart = () => atualizarEstadoIndianos("falando");
-  fala.onend = () => atualizarEstadoIndianos("espera");
-  window.speechSynthesis.speak(fala);
-}
-
-// ============================================================
-// Geração de imagem
-// ============================================================
-async function gerarImagemChat(descricao) {
-  adicionarBalao("indianos", "Gerando imagem...");
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(descricao)}?width=768&height=768&nologo=true`;
-  const historico = document.getElementById("historico-chat");
-  const ultimoBalao = historico.querySelectorAll(".balao-indianos");
-  const balaoAtual = ultimoBalao[ultimoBalao.length - 1];
-  const img = document.createElement("img");
-  img.src = url;
-  img.alt = descricao;
-  img.className = "imagem-gerada";
-  img.onerror = () => { balaoAtual.textContent = "Não consegui gerar a imagem agora."; };
-  img.onload = () => { balaoAtual.textContent = ""; balaoAtual.appendChild(img); };
-}
-
-// ============================================================
-// Roteador de comandos
-// ============================================================
-const GATILHOS_ESCRITA_LITERAL = [
-  "escreve exatamente", "escreva exatamente", "escreve literalmente",
-  "escreva literalmente", "anota exatamente", "escreve exato", "escreva exato",
-];
-
-async function processarComando(textoOriginal) {
-  const texto = textoOriginal.trim();
-  const textoMin = texto.toLowerCase();
-  if (!texto) return;
-
-  atualizarEstadoIndianos("processando");
-
-  const gatilhoLiteral = GATILHOS_ESCRITA_LITERAL.find((g) => textoMin.includes(g));
-  if (gatilhoLiteral) {
-    const idx = textoMin.indexOf(gatilhoLiteral) + gatilhoLiteral.length;
-    const conteudo = texto.slice(idx).trim().replace(/^[:.\s]+/, "");
-    await addDoc(collection(db, "arquivos_texto"), {
-      titulo: "(escrito exatamente)", conteudo, criado_em: serverTimestamp(),
-    });
-    carregarNotas();
-    adicionarBalao("indianos", `Escrevi exatamente: ${conteudo}`);
-    falarTexto(`Escrevi exatamente: ${conteudo}`);
-    atualizarEstadoIndianos("espera");
-    return;
-  }
-  if (["anota", "anote", "escreve", "escreva", "salva no bloco"].some((g) => textoMin.includes(g))) {
-    const pedidoIA = (
-      `O usuário pediu para escrever isto no bloco de notas: '${texto}'. ` +
-      "Gere APENAS o conteúdo final e completo que deve ser escrito, sem " +
-      "introduções, sem explicações e sem comentários — só o conteúdo puro."
-    );
-    const conteudoGerado = await chamarGemini({ contents: [{ parts: [{ text: pedidoIA }] }] });
-    if (!conteudoGerado) {
-      adicionarBalao("indianos", "Não consegui gerar o conteúdo agora (sem chave do Gemini configurada?).");
-      atualizarEstadoIndianos("espera");
-      return;
-    }
-    await addDoc(collection(db, "arquivos_texto"), {
-      titulo: "(gerado pela IA)", conteudo: conteudoGerado, criado_em: serverTimestamp(),
-    });
-    carregarNotas();
-    adicionarBalao("indianos", "Escrevi no bloco de notas.");
-    falarTexto("Escrevi no bloco de notas.");
-    atualizarEstadoIndianos("espera");
-    return;
-  }
-
-  if (["gera uma imagem", "gerar imagem", "cria uma imagem", "desenha"].some((g) => textoMin.includes(g))) {
-    await gerarImagemChat(texto);
-    falarTexto("Pronto, gerei a imagem.");
-    atualizarEstadoIndianos("espera");
-    return;
-  }
-
-  const resposta = await chamarGemini({
-    contents: [
-      { role: "user", parts: [{ text: "Você é o Indianos, uma IA que gerencia o cofre pessoal do seu criador." }] },
-      { role: "model", parts: [{ text: "Entendido, estou pronto." }] },
-      { role: "user", parts: [{ text: texto }] },
-    ],
-  });
-  const textoResposta = resposta || "Chat desativado — nenhuma chave do Gemini respondeu com sucesso.";
-  adicionarBalao("indianos", textoResposta);
-  falarTexto(textoResposta);
-  atualizarEstadoIndianos("espera");
-}
-
-// ============================================================
-// Chat
-// ============================================================
-document.getElementById("btn-enviar-chat").addEventListener("click", enviarMensagemChat);
-document.getElementById("input-chat").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") enviarMensagemChat();
-});
-
-async function enviarMensagemChat() {
-  const campo = document.getElementById("input-chat");
-  const texto = campo.value.trim();
-  if (!texto) return;
-  campo.value = "";
-  adicionarBalao("voce", texto);
-  await processarComando(texto);
-}
-
-function adicionarBalao(quem, texto) {
-  const historico = document.getElementById("historico-chat");
-  const balao = document.createElement("div");
-  balao.className = `balao balao-${quem}`;
-  balao.textContent = texto;
-  historico.appendChild(balao);
-  historico.scrollTop = historico.scrollHeight;
 }
